@@ -45,15 +45,14 @@ def draw_character_select(screen, selected_index):
         text = font.render(name, True, WHITE)
         screen.blit(text, (rect.centerx - text.get_width() // 2, rect.bottom + 10))
 
-# チュートリアル表示関数
 def draw_tutorial(screen):
     tutorial_lines = [
         "=== 操作方法チュートリアル ===",
         "← / → ：移動",
         "↑：ジャンプ",
         "↓：しゃがみ",
-        "Aキー：弱攻撃（昇龍拳コマンド →↓→ + A）",
-        "Sキー：強攻撃（波動拳コマンド ↓→ + S、竜巻旋風脚 ←↓→ + S）",
+        "Aキー：弱攻撃（昇龍拳 →↓→ + A）",
+        "Sキー：強攻撃（波動拳 ↓→ + S、竜巻旋風脚 ←↓→ + S）",
         "Dキー：ガード（押しっぱなし）",
         "Kキー：かめはめ波（遠距離攻撃）",
         "ESCキー：チュートリアルを閉じる",
@@ -80,7 +79,19 @@ def draw_title_screen(screen):
     screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, HEIGHT // 3))
     screen.blit(instruction_text, (WIDTH // 2 - instruction_text.get_width() // 2, HEIGHT // 2))
 
+def draw_result_screen(screen, winner_text):
+    screen.fill((0, 0, 0))
+    font_title = pygame.font.SysFont("meiryo", 48)
+    font_menu = pygame.font.SysFont("meiryo", 28)
 
+    result = font_title.render(winner_text, True, WHITE)
+    retry = font_menu.render("Rキー：リトライ", True, WHITE)
+    to_title = font_menu.render("Tキー：タイトルへ戻る", True, WHITE)
+
+    screen.blit(result, (WIDTH // 2 - result.get_width() // 2, HEIGHT // 3))
+    screen.blit(retry, (WIDTH // 2 - retry.get_width() // 2, HEIGHT // 2))
+    screen.blit(to_title, (WIDTH // 2 - to_title.get_width() // 2, HEIGHT // 2 + 40))
+    
 class Hadouken:
     WIDTH, HEIGHT = 30, 15
     SPEED = 12
@@ -383,8 +394,6 @@ def draw_hp_bar(screen, x, y, hp):
     pygame.draw.rect(screen, RED, (x, y, 200, 20))
     pygame.draw.rect(screen, GREEN, (x, y, 2 * hp, 20))
 
-
-
 def main():
     global show_title, show_character_select, selected_index
     player = None
@@ -393,6 +402,8 @@ def main():
     show_tutorial = False
     running = True
     game_over = False
+    show_result = False
+    winner_text = ""
 
     while running:
         screen.fill((30, 30, 30))
@@ -414,6 +425,16 @@ def main():
                         player = Player(100, HEIGHT - 110, selected_char["color"], is_cpu=False)
                         cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
                         show_character_select = False
+                elif show_result:
+                    if event.key == pygame.K_r:
+                        selected_char = characters[selected_index]
+                        player = Player(100, HEIGHT - 110, selected_char["color"], is_cpu=False)
+                        cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
+                        game_over = False
+                        show_result = False
+                    elif event.key == pygame.K_t:
+                        show_result = False
+                        show_title = True
                 else:
                     if event.key == pygame.K_ESCAPE:
                         show_tutorial = not show_tutorial
@@ -424,6 +445,8 @@ def main():
             draw_character_select(screen, selected_index)
         elif show_tutorial:
             draw_tutorial(screen)
+        elif show_result:
+            draw_result_screen(screen, winner_text)
         else:
             if not game_over:
                 keys = pygame.key.get_pressed()
@@ -447,13 +470,13 @@ def main():
 
             font = pygame.font.SysFont(None, 36)
             if player.hp <= 0:
-                text = font.render("CPUの勝ち！", True, WHITE)
-                screen.blit(text, (WIDTH // 2 - 80, HEIGHT // 2))
+                winner_text = "CPUの勝ち！"
                 game_over = True
+                show_result = True
             elif cpu.hp <= 0:
-                text = font.render("プレイヤーの勝ち！", True, WHITE)
-                screen.blit(text, (WIDTH // 2 - 100, HEIGHT // 2))
+                winner_text = "プレイヤーの勝ち！"
                 game_over = True
+                show_result = True
 
         pygame.display.flip()
         clock.tick(FPS)
