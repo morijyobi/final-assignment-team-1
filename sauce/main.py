@@ -19,6 +19,32 @@ GRAY = (150, 150, 150)
 HADOUKEN_COLOR = (0, 100, 255)
 KAMEHAMEHA_COLOR = (0, 200, 255)
 
+characters = [
+    {"name": "青龍", "color": BLUE},
+    {"name": "赤虎", "color": RED},
+    {"name": "緑風", "color": GREEN},
+]
+
+selected_index = 0
+show_title = True
+show_character_select = False
+
+def draw_character_select(screen, selected_index):
+    screen.fill((0, 0, 0))
+    font = pygame.font.SysFont("meiryo", 40)
+    title = font.render("キャラを選んでください", True, WHITE)
+    screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 50))
+
+    for i, char in enumerate(characters):
+        color = char["color"]
+        name = char["name"]
+        rect = pygame.Rect(150 + i * 200, 150, 100, 100)
+        pygame.draw.rect(screen, color, rect)
+        pygame.draw.rect(screen, WHITE, rect, 4 if i == selected_index else 1)
+
+        text = font.render(name, True, WHITE)
+        screen.blit(text, (rect.centerx - text.get_width() // 2, rect.bottom + 10))
+
 # チュートリアル表示関数
 def draw_tutorial(screen):
     tutorial_lines = [
@@ -358,55 +384,60 @@ def draw_hp_bar(screen, x, y, hp):
     pygame.draw.rect(screen, GREEN, (x, y, 2 * hp, 20))
 
 
+
 def main():
-    player = Player(100, HEIGHT - 110, BLUE, is_cpu=False)
-    cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
+    global show_title, show_character_select, selected_index
+    player = None
+    cpu = None
 
     show_tutorial = False
     running = True
-    show_title = True
+    game_over = False
 
     while running:
         screen.fill((30, 30, 30))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-
             elif event.type == pygame.KEYDOWN:
                 if show_title:
                     if event.key == pygame.K_SPACE:
                         show_title = False
-                        player.hp = 100
-                        cpu.hp = 100
-                        player.rect.x, player.rect.y = 100, HEIGHT - 110
-                        cpu.rect.x, cpu.rect.y = 600, HEIGHT - 110
-                        player.is_attacking = False
-                        cpu.is_attacking = False
-                        player.hadouken_list.clear()
-                        player.kamehameha_list.clear()
-                        cpu.hadouken_list.clear()
-                        cpu.kamehameha_list.clear()
+                        show_character_select = True
+                elif show_character_select:
+                    if event.key == pygame.K_LEFT:
+                        selected_index = (selected_index - 1) % len(characters)
+                    elif event.key == pygame.K_RIGHT:
+                        selected_index = (selected_index + 1) % len(characters)
+                    elif event.key == pygame.K_RETURN:
+                        selected_char = characters[selected_index]
+                        player = Player(100, HEIGHT - 110, selected_char["color"], is_cpu=False)
+                        cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
+                        show_character_select = False
                 else:
                     if event.key == pygame.K_ESCAPE:
                         show_tutorial = not show_tutorial
 
         if show_title:
             draw_title_screen(screen)
+        elif show_character_select:
+            draw_character_select(screen, selected_index)
         elif show_tutorial:
             draw_tutorial(screen)
         else:
-            keys = pygame.key.get_pressed()
-            player.handle_input(keys, cpu)
-            cpu.handle_input(opponent=player)
+            if not game_over:
+                keys = pygame.key.get_pressed()
+                player.handle_input(keys, cpu)
+                cpu.handle_input(opponent=player)
 
-            player.update()
-            cpu.update()
+                player.update()
+                cpu.update()
 
-            check_attack(player, cpu)
-            check_attack(cpu, player)
+                check_attack(player, cpu)
+                check_attack(cpu, player)
 
-            check_projectile_hit(player, cpu)
-            check_projectile_hit(cpu, player)
+                check_projectile_hit(player, cpu)
+                check_projectile_hit(cpu, player)
 
             player.draw(screen)
             cpu.draw(screen)
@@ -418,9 +449,11 @@ def main():
             if player.hp <= 0:
                 text = font.render("CPUの勝ち！", True, WHITE)
                 screen.blit(text, (WIDTH // 2 - 80, HEIGHT // 2))
+                game_over = True
             elif cpu.hp <= 0:
                 text = font.render("プレイヤーの勝ち！", True, WHITE)
                 screen.blit(text, (WIDTH // 2 - 100, HEIGHT // 2))
+                game_over = True
 
         pygame.display.flip()
         clock.tick(FPS)
