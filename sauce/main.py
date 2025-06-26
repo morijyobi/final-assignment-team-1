@@ -25,10 +25,31 @@ characters = [
     {"name": "緑風", "color": GREEN},
 ]
 
+backgrounds = [
+    {"name": "道場", "image": pygame.image.load("img/dojo.png")},
+    {"name": "古代寺", "image": pygame.image.load("img/temple.png")},
+    {"name": "森", "image": pygame.image.load("img/forest.png")},
+]
+
 selected_index = 0
+selected_stage = 0
 show_title = True
 show_character_select = False
+show_stage_select = False
 
+def draw_stage_select(screen, selected_stage):
+    screen.fill((0, 0, 0))
+    font = pygame.font.SysFont("meiryo", 40)
+    title = font.render("ステージを選んでください", True, WHITE)
+    screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 50))
+
+    for i, bg in enumerate(backgrounds):
+        name = bg["name"]
+        rect = pygame.Rect(150 + i * 200, 150, 100, 100)
+        pygame.draw.rect(screen, WHITE, rect, 4 if i == selected_stage else 1)
+        text = font.render(name, True, WHITE)
+        screen.blit(text, (rect.centerx - text.get_width() // 2, rect.bottom + 10))
+        
 def draw_character_select(screen, selected_index):
     screen.fill((0, 0, 0))
     font = pygame.font.SysFont("meiryo", 40)
@@ -394,10 +415,14 @@ def draw_hp_bar(screen, x, y, hp):
     pygame.draw.rect(screen, RED, (x, y, 200, 20))
     pygame.draw.rect(screen, GREEN, (x, y, 2 * hp, 20))
 
+# 省略（draw_character_select 〜 draw_result_screen, Hadouken, Kamehameha, Playerなどは同じ）
+# ...
+
 def main():
-    global show_title, show_character_select, selected_index
+    global show_title, show_character_select, selected_index, selected_stage, show_stage_select
     player = None
     cpu = None
+    selected_background = None
 
     show_tutorial = False
     running = True
@@ -421,10 +446,19 @@ def main():
                     elif event.key == pygame.K_RIGHT:
                         selected_index = (selected_index + 1) % len(characters)
                     elif event.key == pygame.K_RETURN:
+                        show_character_select = False
+                        show_stage_select = True
+                elif show_stage_select:
+                    if event.key == pygame.K_LEFT:
+                        selected_stage = (selected_stage - 1) % len(backgrounds)
+                    elif event.key == pygame.K_RIGHT:
+                        selected_stage = (selected_stage + 1) % len(backgrounds)
+                    elif event.key == pygame.K_RETURN:
+                        selected_background = backgrounds[selected_stage]["image"]
                         selected_char = characters[selected_index]
                         player = Player(100, HEIGHT - 110, selected_char["color"], is_cpu=False)
                         cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
-                        show_character_select = False
+                        show_stage_select = False
                 elif show_result:
                     if event.key == pygame.K_r:
                         selected_char = characters[selected_index]
@@ -443,11 +477,18 @@ def main():
             draw_title_screen(screen)
         elif show_character_select:
             draw_character_select(screen, selected_index)
+        elif show_stage_select:
+            draw_stage_select(screen, selected_stage)
         elif show_tutorial:
             draw_tutorial(screen)
         elif show_result:
             draw_result_screen(screen, winner_text)
         else:
+            if selected_background:
+                screen.blit(pygame.transform.scale(selected_background, (WIDTH, HEIGHT)), (0, 0))
+            else:
+                screen.fill((0, 0, 0))
+
             if not game_over:
                 keys = pygame.key.get_pressed()
                 player.handle_input(keys, cpu)
