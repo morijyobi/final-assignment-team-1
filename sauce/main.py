@@ -19,12 +19,6 @@ GRAY = (150, 150, 150)
 HADOUKEN_COLOR = (0, 100, 255)
 KAMEHAMEHA_COLOR = (0, 200, 255)
 
-characters = [
-    {"name": "青龍", "color": BLUE},
-    {"name": "赤虎", "color": RED},
-    {"name": "緑風", "color": GREEN},
-]
-
 backgrounds = [
     {"name": "道場", "image": pygame.image.load("img/dojo.png")},
     {"name": "古代寺", "image": pygame.image.load("img/temple.png")},
@@ -176,6 +170,8 @@ class Player:
         self.is_crouch = False
         self.facing_right = True
         self.is_cpu = is_cpu
+        self.is_raigekiken = False
+        self.raigekiken_timer = 0
 
         self.command_buffer = []
         self.command_timer = 0
@@ -204,27 +200,27 @@ class Player:
         if self.is_tatsumaki:
             return
 
-        if keys[pygame.K_LEFT]:
+        if keys[pygame.K_a]:
             self.rect.x -= self.SPEED
             self.facing_right = False
             self.add_command('←')
-        if keys[pygame.K_RIGHT]:
+        if keys[pygame.K_d]:
             self.rect.x += self.SPEED
             self.facing_right = True
             self.add_command('→')
 
-        if keys[pygame.K_UP] and self.on_ground:
+        if keys[pygame.K_w] and self.on_ground:
             self.vel_y = -self.JUMP_POWER
             self.on_ground = False
             self.add_command('↑')
-        if keys[pygame.K_DOWN] and self.on_ground:
+        if keys[pygame.K_s] and self.on_ground:
             self.is_crouch = True
             self.add_command('↓')
 
-        if keys[pygame.K_d]:
+        if keys[pygame.K_h]:
             self.is_guarding = True
 
-        if keys[pygame.K_a] and self.attack_cooldown == 0:
+        if keys[pygame.K_j] and self.attack_cooldown == 0:
             if self.check_shoryuken_command():
                 self.attack_cooldown = 30
                 self.attack_type = 'shoryuken'
@@ -233,13 +229,21 @@ class Player:
                 self.is_shoryuken = True
                 self.shoryuken_timer = 15
                 self.command_buffer.clear()
+            elif self.check_raigekiken_command():
+                self.attack_cooldown = 40
+                self.attack_type = 'raigekiken'
+                self.is_attacking = True
+                self.attack_hit_done = False
+                self.is_raigekiken = True
+                self.raigekiken_timer = 20
+                self.command_buffer.clear()
             else:
                 self.attack_cooldown = 15
                 self.attack_type = 'weak'
                 self.is_attacking = True
                 self.attack_hit_done = False
 
-        elif keys[pygame.K_s] and self.attack_cooldown == 0:
+        elif keys[pygame.K_l] and self.attack_cooldown == 0:
             if self.check_hadouken_command():
                 self.fire_hadouken()
                 self.attack_cooldown = 30
@@ -283,6 +287,9 @@ class Player:
 
     def check_tatsumaki_command(self):
         return '←↓→' in ''.join(self.command_buffer)[-5:]
+    
+    def check_raigekiken_command(self):
+        return '↓←→' in ''.join(self.command_buffer)[-5:]
 
     def fire_hadouken(self):
         h = self.HEIGHT // 2 if self.is_crouch else self.HEIGHT
@@ -352,6 +359,11 @@ class Player:
                 self.rect.bottom = HEIGHT - 30
             if self.tatsumaki_timer <= 0:
                 self.is_tatsumaki = False
+                
+        if self.is_raigekiken:
+            self.raigekiken_timer -= 1
+            if self.raigekiken_timer <= 0:
+                self.is_raigekiken = False
 
         # Update hadouken projectiles
         for h in self.hadouken_list:
@@ -373,6 +385,18 @@ class Player:
         for k in self.kamehameha_list:
             k.draw(screen)
 
+        if self.is_raigekiken:
+            effect_color = (100, 100, 255)
+            effect_rect = pygame.Rect(
+                self.rect.right if self.facing_right else self.rect.left - 60,
+                self.rect.centery - 10,
+                60, 20
+            )
+            pygame.draw.rect(screen, effect_color, effect_rect)
+            pygame.draw.line(screen, (255, 255, 255), 
+                            (effect_rect.left, effect_rect.top), 
+                            (effect_rect.right, effect_rect.bottom), 2)
+
 def check_attack(attacker, defender):
     if attacker.is_attacking and not attacker.attack_hit_done:
         attack_rect = attacker.rect.copy()
@@ -391,12 +415,31 @@ def check_attack(attacker, defender):
         elif attacker.attack_type == 'shoryuken':
             attack_rect.y -= 20
             attack_rect.height += 40
+        elif attacker.attack_type == 'raigekiken':
+            if attacker.facing_right:
+                attack_rect.width += 50
+            else:
+                attack_rect.x -= 50
+                attack_rect.width += 50
+            attack_rect.height += 20
 
-        if attack_rect.colliderect(defender.rect) and not defender.is_guarding:
-            defender.hp -= 10
+        # ✅ ヒット時の処理（ここが重要！）
+        if attack_rect.colliderect(defender.rect):
+            if not defender.is_guarding:
+                # 攻撃タイプごとにダメージ調整
+                if attacker.attack_type == 'weak':
+                    defender.hp -= 6
+                elif attacker.attack_type == 'strong':
+                    defender.hp -= 10
+                elif attacker.attack_type == 'shoryuken':
+                    defender.hp -= 12
+                elif attacker.attack_type == 'raigekiken':
+                    defender.hp -= 18
+                elif attacker.attack_type == 'tatsumaki':
+                    defender.hp -= 10
+            # 1回だけ当たるように
             attacker.attack_hit_done = True
-        elif attack_rect.colliderect(defender.rect) and defender.is_guarding:
-            attacker.attack_hit_done = True
+
 
 def check_projectile_hit(attacker, defender):
     for h in attacker.hadouken_list:
@@ -418,6 +461,33 @@ def draw_hp_bar(screen, x, y, hp):
 # 省略（draw_character_select 〜 draw_result_screen, Hadouken, Kamehameha, Playerなどは同じ）
 # ...
 
+class Seiryu(Player):
+    def __init__(self, x, y, is_cpu=False):
+        super().__init__(x, y, BLUE, is_cpu)
+        self.SPEED = 5
+        self.JUMP_POWER = 15
+        self.special_moves = ["shoryuken", "hadouken", "kamehameha"]
+        
+class Akatora(Player):
+    def __init__(self, x, y, is_cpu=False):
+        super().__init__(x, y, RED, is_cpu)
+        self.SPEED = 7
+        self.JUMP_POWER = 13
+        self.special_moves = ["tatsumaki", "hadouken"]
+
+class Midorikaze(Player):
+    def __init__(self, x, y, is_cpu=False):
+        super().__init__(x, y, GREEN, is_cpu)
+        self.SPEED = 4
+        self.JUMP_POWER = 17
+        self.special_moves = ["kamehameha", "hadouken"]
+
+characters = [
+    {"name": "青龍", "color": BLUE, "class": Seiryu},
+    {"name": "赤虎", "color": RED, "class": Akatora},
+    {"name": "緑風", "color": GREEN, "class": Midorikaze},
+]
+
 def main():
     global show_title, show_character_select, selected_index, selected_stage, show_stage_select
     player = None
@@ -438,7 +508,7 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if show_title:
                     if event.key == pygame.K_SPACE:
-                        show_title = False
+                        show_title = False 
                         show_character_select = True
                 elif show_character_select:
                     if event.key == pygame.K_LEFT:
@@ -447,28 +517,45 @@ def main():
                         selected_index = (selected_index + 1) % len(characters)
                     elif event.key == pygame.K_RETURN:
                         show_character_select = False
-                        show_stage_select = True
+                        show_stage_select = True  # ステージ選択へ
+
                 elif show_stage_select:
                     if event.key == pygame.K_LEFT:
                         selected_stage = (selected_stage - 1) % len(backgrounds)
                     elif event.key == pygame.K_RIGHT:
                         selected_stage = (selected_stage + 1) % len(backgrounds)
-                    elif event.key == pygame.K_RETURN:
-                        selected_background = backgrounds[selected_stage]["image"]
-                        selected_char = characters[selected_index]
-                        player = Player(100, HEIGHT - 110, selected_char["color"], is_cpu=False)
-                        cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
-                        show_stage_select = False
+                    elif show_stage_select:
+                        if event.key == pygame.K_RETURN:
+                            # 選択済のキャラとステージでゲーム本番を初期化
+                            selected_char = characters[selected_index]
+                            player = selected_char["class"](100, HEIGHT - 110, is_cpu=False)
+                            cpu = Akatora(600, HEIGHT - 110, is_cpu=True)
+                            selected_background = backgrounds[selected_stage]["image"]
+                            show_stage_select = False
+                            game_over = False
+                            show_result = False
+
+
                 elif show_result:
-                    if event.key == pygame.K_r:
+                    if  event.key == pygame.K_r:
+                        show_stage_select = True  # ✅ ステージ選択に戻る
                         selected_char = characters[selected_index]
-                        player = Player(100, HEIGHT - 110, selected_char["color"], is_cpu=False)
-                        cpu = Player(600, HEIGHT - 110, RED, is_cpu=True)
+                        player = selected_char["class"](100, HEIGHT - 110, is_cpu=False)
+                        cpu = Akatora(600, HEIGHT - 110, is_cpu=True)
                         game_over = False
                         show_result = False
+                        show_character_select = False  # これが抜けていると止まる可能性
+
                     elif event.key == pygame.K_t:
                         show_result = False
                         show_title = True
+                        show_character_select = False
+                        show_stage_select = False
+                        # フロー再利用のためのリセット
+                        selected_background = None
+                        selected_stage = 0
+
+
                 else:
                     if event.key == pygame.K_ESCAPE:
                         show_tutorial = not show_tutorial
