@@ -1,5 +1,10 @@
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+# config.py
+# ゲームとサーバーで共通の設定ファイル
+
+# 画面サイズ
+WIDTH, HEIGHT = 800, 400
 FPS = 60
-SERVER_HOST = '0.0.0.0'  # 全てのNICで待機
-SERVER_PORT = 51515      # 闘拳伝説 専用ポート番号
+
+# サーバー設定
+SERVER_HOST = '0.0.0.0'  # すべてのネットワークインターフェースで待機
+SERVER_PORT = 51515      # このゲーム専用のポート番号
