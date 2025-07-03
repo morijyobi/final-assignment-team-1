@@ -583,6 +583,7 @@ def main():
         
         elif game_state == "result":
             if game_mode == "online":
+                # ★ここを修正★
                 if wants_retry and opponent_data.get("wants_retry"):
                     game_state = "resetting"
                 elif wants_retry:
@@ -591,6 +592,12 @@ def main():
                     draw_result_screen(screen, winner_text)
             else:
                 draw_result_screen(screen, winner_text)
+
+        elif game_state == "resetting":
+            # ★ここも修正★
+            (game_state, my_char_ready, player1, player2,
+             game_over, winner_text) = reset_for_new_match()
+            wants_retry = False
 
         pygame.display.flip()
         clock.tick(FPS)
