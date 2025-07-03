@@ -1,3 +1,4 @@
+# main.py (CPU戦・最終修正版)
 import pygame
 import sys
 import random
@@ -11,7 +12,22 @@ script_dir = os.path.dirname(__file__)
 img_dir = os.path.join(script_dir, '..', 'img')
 
 pygame.init()
+
+# ウィンドウを作成
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
+# クリップボード機能が使えるかどうかのフラグ
+scrap_initialized = False
+try:
+    # クリップボードを初期化
+    pygame.scrap.init()
+    # 初期化が本当に成功したかを確認
+    if pygame.scrap.get_init():
+        scrap_initialized = True
+        print("クリップボード機能が利用可能です。")
+except Exception as e:
+    # 何らかの理由で初期化に失敗した場合
+    print(f"警告: クリップボード機能は利用できません。エラー: {e}")
+
 pygame.display.set_caption("闘拳伝説")
 clock = pygame.time.Clock()
 
@@ -88,7 +104,7 @@ def draw_ip_input_screen(screen, ip_address, message=""):
     input_box = pygame.Rect(WIDTH // 2 - 150, 200, 300, 50)
     pygame.draw.rect(screen, WHITE, input_box, 2)
     draw_text(ip_address, FONT_M, WHITE, screen, WIDTH // 2, 225)
-    draw_text("Enterキーで接続", FONT_S, WHITE, screen, WIDTH // 2, 300)
+    draw_text("Enter:接続 / Space:ドット / Ctrl+V:貼付", FONT_S, WHITE, screen, WIDTH // 2, 300)
     if message:
         draw_text(message, FONT_S, RED, screen, WIDTH // 2, 350)
 
@@ -184,24 +200,18 @@ class Player:
         self.tatsumaki_speed = 10
 
     def handle_input(self, input_state, opponent=None):
-        """プレイヤーの入力を処理する（修正版）"""
         if self.is_cpu:
             self.ai_behavior(opponent)
             return
 
-        # is_dictフラグで、入力が辞書か（ネットワーク経由か）どうかを判断
         is_dict = isinstance(input_state, dict)
 
-        # ガードとしゃがみ状態をリセット
         self.is_guarding = False
         self.is_crouch = False
 
-        # 竜巻旋風脚の最中は他の入力を受け付けない
         if self.is_tatsumaki:
             return
 
-        # --- 入力の種類に応じてキーの状態を取得 ---
-        # is_dict が True (ネットワーク) なら 'left', False (ローカル) なら pygame.K_LEFT でチェック
         move_left = input_state.get('left', False) if is_dict else input_state[pygame.K_LEFT]
         move_right = input_state.get('right', False) if is_dict else input_state[pygame.K_RIGHT]
         jump = input_state.get('up', False) if is_dict else input_state[pygame.K_UP]
@@ -211,7 +221,6 @@ class Player:
         strong_attack = input_state.get('s', False) if is_dict else input_state[pygame.K_s]
         ki_attack = input_state.get('k', False) if is_dict else input_state[pygame.K_k]
 
-        # --- 取得したキー状態に基づいて処理 ---
         if move_left:
             self.rect.x -= self.SPEED
             self.facing_right = False
@@ -255,7 +264,6 @@ class Player:
             self.command_timer -= 1
         else:
             self.command_buffer.clear()
-
 
     def add_command(self, cmd):
         self.command_buffer.append(cmd)
@@ -326,6 +334,7 @@ class Player:
         for p in self.hadouken_list: p.draw(screen)
         for p in self.kamehameha_list: p.draw(screen)
 
+# --- 判定関数 ---
 def check_attack(attacker, defender):
     if attacker.is_attacking and not attacker.attack_hit_done:
         attack_rect = attacker.rect.copy()
@@ -354,21 +363,38 @@ def check_projectile_hit(attacker, defender):
 
 # --- メイン関数 ---
 def main():
-    game_state = "title"
-    game_mode = "cpu"
-    selected_mode = "cpu"
+    # --- 状態をリセットするヘルパー関数 ---
+    def reset_for_new_match():
+        """対戦リセット用の状態初期化"""
+        return "char_select", False, None, None, False, ""
+
+    def reset_to_title(network_connection):
+        """タイトルに戻るための完全な状態初期化"""
+        if network_connection:
+            network_connection.close()
+        return "title", "cpu", "cpu", 0, 0, False, None, None, None, False, "", False
+
+    # --- 初期状態 ---
+    (game_state, game_mode, selected_mode, 
+     my_char_index, my_stage_index, my_char_ready,
+     player1, player2, selected_background, 
+     game_over, winner_text, wants_retry) = reset_to_title(None)
+    
     network = None
     ip_address = ""
     ip_input_message = ""
-    my_char_index, my_stage_index, my_char_ready = 0, 0, False
-    player1, player2, selected_background, game_over, winner_text = None, None, None, False, ""
     
     running = True
     while running:
         opponent_data = {}
-        # 1. 通信 (オンラインモードかつ、選択画面以降)
+        # 1. 通信
         if game_mode == "online" and network and game_state not in ["title", "ip_input", "waiting_connect"]:
-            my_data = {"char_index": my_char_index, "stage_index": my_stage_index, "ready": my_char_ready, "keys": {}}
+            my_data = {
+                "game_state": game_state,
+                "char_index": my_char_index, "stage_index": my_stage_index, 
+                "ready": my_char_ready, "keys": {}, "wants_retry": wants_retry,
+                "hp": player1.hp if player1 else 100
+            }
             if game_state == "in_game" and not game_over:
                 keys = pygame.key.get_pressed()
                 my_data["keys"] = {'left':keys[pygame.K_LEFT],'right':keys[pygame.K_RIGHT],'up':keys[pygame.K_UP],'down':keys[pygame.K_DOWN],'a':keys[pygame.K_a],'s':keys[pygame.K_s],'d':keys[pygame.K_d],'k':keys[pygame.K_k]}
@@ -376,8 +402,11 @@ def main():
             opponent_data = network.send(my_data)
             if opponent_data is None:
                 print("相手の接続が切れました。タイトルに戻ります。")
-                game_state = "title"; network.close(); network = None; continue
-
+                (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
+                 player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                network = None
+                continue
+        
         # 2. イベント処理
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
@@ -387,29 +416,65 @@ def main():
                     elif event.key == pygame.K_RETURN:
                         game_mode = selected_mode
                         game_state = "char_select" if game_mode == "cpu" else "ip_input"
+                
                 elif game_state == "ip_input":
-                    if event.key == pygame.K_RETURN: game_state = "waiting_connect"
-                    elif event.key == pygame.K_BACKSPACE: ip_address = ip_address[:-1]
-                    else: ip_address += event.unicode
+                    if event.key == pygame.K_RETURN:
+                        game_state = "waiting_connect"
+                    elif event.key == pygame.K_BACKSPACE:
+                        ip_address = ip_address[:-1]
+                    elif event.key == pygame.K_v and (pygame.key.get_mods() & pygame.KMOD_CTRL):
+                        if scrap_initialized:
+                            try:
+                               clipboard_text = pygame.scrap.get(pygame.SCRAP_TEXT)
+                               if clipboard_text:
+                                   cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
+                                   ip_address += cleaned_text.strip()
+                            except Exception as e:
+                               print(f"貼り付けに失敗しました: {e}")
+                        else:
+                            print("クリップボード機能が利用できないため、貼り付けできません。")
+                    elif event.key == pygame.K_SPACE:
+                        ip_address += "."
+                    else:
+                        if event.unicode.isdigit() or event.unicode == '.':
+                            ip_address += event.unicode
+
                 elif game_state == "char_select" and not my_char_ready:
                     if event.key == pygame.K_LEFT: my_char_index = (my_char_index - 1) % len(characters)
                     elif event.key == pygame.K_RIGHT: my_char_index = (my_char_index + 1) % len(characters)
                     elif event.key == pygame.K_RETURN: my_char_ready = True
-                elif game_state == "stage_select" and (game_mode == "cpu" or (network and network.player_id == 0)):
-                    if event.key == pygame.K_LEFT: my_stage_index = (my_stage_index - 1) % len(backgrounds)
-                    elif event.key == pygame.K_RIGHT: my_stage_index = (my_stage_index + 1) % len(backgrounds)
-                    elif event.key == pygame.K_RETURN: game_state = "start_game"
+
+                # ★★★ ここが最重要修正ポイント！ ★★★
+                elif game_state == "stage_select":
+                    # P1(またはCPU戦のプレイヤー)のみが操作可能
+                    if game_mode == "cpu" or (network and network.player_id == 0):
+                        if event.key == pygame.K_LEFT: my_stage_index = (my_stage_index - 1) % len(backgrounds)
+                        elif event.key == pygame.K_RIGHT: my_stage_index = (my_stage_index + 1) % len(backgrounds)
+                        elif event.key == pygame.K_RETURN:
+                            if game_mode == "cpu":
+                                # CPU戦の場合は、直接ゲーム開始
+                                game_state = "start_game"
+                            else:
+                                # オンライン戦の場合は、相手の準備を待つ
+                                game_state = "waiting_for_p2_start"
+                # ★★★ ここまでが修正箇所 ★★★
+                                
                 elif game_state == "result":
                     if event.key == pygame.K_t:
-                        game_state, game_mode, selected_mode = "title", "cpu", "cpu"
-                        if network: network.close(); network = None
-                        my_char_index, my_stage_index, my_char_ready = 0, 0, False
-                        player1, player2, game_over = None, None, False
-                    elif event.key == pygame.K_r and game_mode == "cpu":
-                        game_state = "char_select"; my_char_ready = False; player1, player2, game_over = None, None, False
-
+                        (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
+                         player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                        network = None
+                    elif event.key == pygame.K_r:
+                        if game_mode == "cpu":
+                            (game_state, my_char_ready, player1, player2, 
+                             game_over, winner_text) = reset_for_new_match()
+                            wants_retry = False
+                        else:
+                            wants_retry = True
+        
         # 3. 画面描画とロジック
         screen.fill(BLACK)
+            
         if game_state == "title":
             draw_title_screen(screen, selected_mode)
         elif game_state == "ip_input":
@@ -423,59 +488,109 @@ def main():
             else:
                 game_state = "ip_input"
                 ip_input_message = "接続失敗"
+                network = None
+        
         elif game_state == "char_select":
+            opponent_char_index = opponent_data.get("char_index", 0) if game_mode == "online" else 0
             if (game_mode == "cpu" and my_char_ready) or \
                (game_mode == "online" and my_char_ready and opponent_data.get("ready")):
                 game_state = "stage_select"
-            draw_character_select(screen, my_char_index, opponent_data.get("char_index", 0), my_char_ready)
+            draw_character_select(screen, my_char_index, opponent_char_index, my_char_ready)
+        
         elif game_state == "stage_select":
             can_select = game_mode == "cpu" or (network and network.player_id == 0)
-            if not can_select:
+            if game_mode == "online" and not can_select: # P2の処理
                 my_stage_index = opponent_data.get("stage_index", 0)
-            if game_mode == "online" and opponent_data.get("stage_index", -1) != -1:
-                 game_state = "start_game"
+                if opponent_data.get("game_state") == "waiting_for_p2_start":
+                    game_state = "start_game"
             draw_stage_select(screen, my_stage_index, can_select)
+        
+        elif game_state == "waiting_for_p2_start":
+            draw_waiting_screen(screen, "相手の準備を待っています...")
+            if opponent_data.get("game_state") == "start_game":
+                game_state = "start_game"
+        
+        elif game_state == "resetting":
+            (game_state, my_char_ready, player1, player2,
+             game_over, winner_text) = reset_for_new_match()
+            wants_retry = False
+
         elif game_state == "start_game":
-            p1_idx = my_char_index
-            p2_idx = opponent_data.get("char_index", 0) if game_mode == "online" else random.randint(0, len(characters)-1)
-            p1_char, p2_char = characters[p1_idx], characters[p2_idx]
-            if game_mode == "cpu":
-                player1 = Player(100, HEIGHT - 110, p1_char["color"])
-                player2 = Player(600, HEIGHT - 110, p2_char["color"], True)
+            # オンライン戦の場合、両者がこの状態になるまで待機する
+            if game_mode == "online" and opponent_data.get("game_state") != "start_game":
+                draw_waiting_screen(screen, "ゲームを開始しています...")
             else:
-                if network.player_id == 0:
-                    player1, player2 = Player(100,HEIGHT-110,p1_char["color"]), Player(600,HEIGHT-110,p2_char["color"])
+                # CPU戦、またはオンライン戦で両者の準備が整ったらゲームを開始
+                stage_idx = my_stage_index if (game_mode == "cpu" or network.player_id == 0) else opponent_data.get("stage_index", 0)
+                if backgrounds:
+                    selected_background = backgrounds[stage_idx]["image"]
+
+                my_char = characters[my_char_index]
+                opponent_char_idx = opponent_data.get("char_index", 0) if game_mode == "online" else random.randint(0, len(characters)-1)
+                opponent_char = characters[opponent_char_idx]
+
+                if game_mode == "cpu":
+                    player1 = Player(100, HEIGHT - 110, my_char["color"])
+                    player2 = Player(600, HEIGHT - 110, opponent_char["color"], is_cpu=True)
                 else:
-                    player1, player2 = Player(600,HEIGHT-110,p1_char["color"]), Player(100,HEIGHT-110,p2_char["color"])
-            if backgrounds:
-                selected_background = backgrounds[my_stage_index]["image"]
-            game_state = "in_game"
+                    if network.player_id == 0:
+                        player1 = Player(100, HEIGHT - 110, my_char["color"])
+                        player2 = Player(600, HEIGHT - 110, opponent_char["color"])
+                    else:
+                        player1 = Player(600, HEIGHT - 110, my_char["color"])
+                        player2 = Player(100, HEIGHT - 110, opponent_char["color"])
+                
+                game_state = "in_game"
+                game_over = False
+                winner_text = ""
+                wants_retry = False
+        
         elif game_state == "in_game":
-            if selected_background:
-                screen.blit(selected_background, (0,0))
+            if selected_background: screen.blit(selected_background, (0,0))
             if not game_over:
+                if game_mode == "online" and opponent_data and opponent_data.get("hp") is not None:
+                    player2.hp = opponent_data.get("hp")
+
                 keys = pygame.key.get_pressed()
                 player1.handle_input(keys, player2)
                 if game_mode == "cpu":
                     player2.handle_input(None, player1)
                 else:
                     player2.handle_input(opponent_data.get("keys", {}), player1)
+                
                 player1.update()
                 player2.update()
+                
                 check_attack(player1, player2)
                 check_attack(player2, player1)
                 check_projectile_hit(player1, player2)
                 check_projectile_hit(player2, player1)
-                if player1.hp <= 0 or player2.hp <= 0:
-                    winner_text = "Player 1 WINS" if player2.hp <= 0 else "Player 2 WINS"
+
+                if player1.hp <= 0:
+                    winner_text = "YOU LOSE"
                     game_over = True
+                elif player2.hp <= 0:
+                    winner_text = "YOU WIN"
+                    game_over = True
+                
+                if game_over:
                     game_state = "result"
+
             player1.draw(screen)
             player2.draw(screen)
             draw_hp_bar(screen, 50, 20, player1.hp)
             draw_hp_bar(screen, 550, 20, player2.hp)
+        
         elif game_state == "result":
-            draw_result_screen(screen, winner_text)
+            if game_mode == "online":
+                if wants_retry and opponent_data.get("wants_retry"):
+                    game_state = "resetting"
+                elif wants_retry:
+                    draw_waiting_screen(screen, "相手のリトライを待っています...")
+                else:
+                    draw_result_screen(screen, winner_text)
+            else:
+                draw_result_screen(screen, winner_text)
 
         pygame.display.flip()
         clock.tick(FPS)
