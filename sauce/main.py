@@ -430,7 +430,7 @@ def main():
                                    cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
                                    ip_address += cleaned_text.strip()
                             except Exception as e:
-                               print(f"貼り付けに失敗しました: {e}")
+                                print(f"貼り付けに失敗しました: {e}")
                         else:
                             print("クリップボード機能が利用できないため、貼り付けできません。")
                     elif event.key == pygame.K_SPACE:
@@ -462,12 +462,12 @@ def main():
                 elif game_state == "result":
                     if event.key == pygame.K_t:
                         (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
-                         player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                        player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
                         network = None
                     elif event.key == pygame.K_r:
                         if game_mode == "cpu":
                             (game_state, my_char_ready, player1, player2, 
-                             game_over, winner_text) = reset_for_new_match()
+                            game_over, winner_text) = reset_for_new_match()
                             wants_retry = False
                         else:
                             wants_retry = True
@@ -493,7 +493,7 @@ def main():
         elif game_state == "char_select":
             opponent_char_index = opponent_data.get("char_index", 0) if game_mode == "online" else 0
             if (game_mode == "cpu" and my_char_ready) or \
-               (game_mode == "online" and my_char_ready and opponent_data.get("ready")):
+            (game_mode == "online" and my_char_ready and opponent_data.get("ready")):
                 game_state = "stage_select"
             draw_character_select(screen, my_char_index, opponent_char_index, my_char_ready)
         
@@ -512,7 +512,7 @@ def main():
         
         elif game_state == "resetting":
             (game_state, my_char_ready, player1, player2,
-             game_over, winner_text) = reset_for_new_match()
+            game_over, winner_text) = reset_for_new_match()
             wants_retry = False
 
         elif game_state == "start_game":
@@ -583,7 +583,6 @@ def main():
         
         elif game_state == "result":
             if game_mode == "online":
-                # ★ここを修正★
                 if wants_retry and opponent_data.get("wants_retry"):
                     game_state = "resetting"
                 elif wants_retry:
@@ -594,9 +593,8 @@ def main():
                 draw_result_screen(screen, winner_text)
 
         elif game_state == "resetting":
-            # ★ここも修正★
             (game_state, my_char_ready, player1, player2,
-             game_over, winner_text) = reset_for_new_match()
+            game_over, winner_text) = reset_for_new_match()
             wants_retry = False
 
         pygame.display.flip()
