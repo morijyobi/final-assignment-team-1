@@ -1,4 +1,4 @@
-# main.py (CPU戦・最終修正版)
+# main.py (アイコン設定・最終完成版)
 import pygame
 import sys
 import random
@@ -7,10 +7,15 @@ import pickle
 import os
 from config import WIDTH, HEIGHT, FPS
 
-# --- 初期化と定数 ---
-script_dir = os.path.dirname(__file__)
-img_dir = os.path.join(script_dir, '..', 'img')
+def resource_path(relative_path):
+    """ PyInstallerで作成した実行ファイルに対応するための、リソースへの絶対パスを返す関数 """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
+# --- 初期化と定数 ---
 pygame.init()
 
 # ウィンドウを作成
@@ -18,18 +23,26 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 # クリップボード機能が使えるかどうかのフラグ
 scrap_initialized = False
 try:
-    # クリップボードを初期化
     pygame.scrap.init()
-    # 初期化が本当に成功したかを確認
     if pygame.scrap.get_init():
         scrap_initialized = True
         print("クリップボード機能が利用可能です。")
 except Exception as e:
-    # 何らかの理由で初期化に失敗した場合
     print(f"警告: クリップボード機能は利用できません。エラー: {e}")
 
 pygame.display.set_caption("闘拳伝説")
+# ★★★ ここからがアイコン設定の追加コード ★★★
+try:
+    # アイコンファイルを読み込む（PyInstaller対応済み）
+    # フォルダ構成に合わせて sauce/ をパスに追加
+    game_icon = pygame.image.load(resource_path("img/icon2.ico"))
+    # ウィンドウにアイコンを設定する
+    pygame.display.set_icon(game_icon)
+except Exception as e:
+    print(f"アイコンの設定に失敗しました: {e}")
+# ★★★ ここまで ★★★
 clock = pygame.time.Clock()
+
 
 WHITE, RED, BLUE, GREEN, GRAY, BLACK = (255,255,255), (255,0,0), (0,0,255), (0,180,0), (150,150,150), (0,0,0)
 HADOUKEN_COLOR, KAMEHAMEHA_COLOR = (0,100,255), (0,200,255)
@@ -45,8 +58,10 @@ except:
 
 characters = [{"name": "青龍", "color": BLUE}, {"name": "赤虎", "color": RED}, {"name": "緑風", "color": GREEN}]
 try:
-    backgrounds = [{"name": name, "image": pygame.transform.scale(pygame.image.load(os.path.join(img_dir, f_name)), (WIDTH, HEIGHT))}
-                   for name, f_name in [("道場", "dojo.png"), ("古代寺", "temple.png"), ("森", "forest.png")]]
+    # PyInstallerで固めるデータとして指定するフォルダ構成に合わせる
+    background_files = [("道場", "img/dojo.png"), ("古代寺", "img/temple.png"), ("森", "img/forest.png")]
+    backgrounds = [{"name": name, "image": pygame.transform.scale(pygame.image.load(resource_path(f_name)), (WIDTH, HEIGHT))}
+                   for name, f_name in background_files]
 except Exception as e:
     print(f"背景画像エラー: {e}"); backgrounds = []
 
@@ -430,7 +445,7 @@ def main():
                                    cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
                                    ip_address += cleaned_text.strip()
                             except Exception as e:
-                                print(f"貼り付けに失敗しました: {e}")
+                               print(f"貼り付けに失敗しました: {e}")
                         else:
                             print("クリップボード機能が利用できないため、貼り付けできません。")
                     elif event.key == pygame.K_SPACE:
@@ -444,30 +459,25 @@ def main():
                     elif event.key == pygame.K_RIGHT: my_char_index = (my_char_index + 1) % len(characters)
                     elif event.key == pygame.K_RETURN: my_char_ready = True
 
-                # ★★★ ここが最重要修正ポイント！ ★★★
                 elif game_state == "stage_select":
-                    # P1(またはCPU戦のプレイヤー)のみが操作可能
                     if game_mode == "cpu" or (network and network.player_id == 0):
                         if event.key == pygame.K_LEFT: my_stage_index = (my_stage_index - 1) % len(backgrounds)
                         elif event.key == pygame.K_RIGHT: my_stage_index = (my_stage_index + 1) % len(backgrounds)
                         elif event.key == pygame.K_RETURN:
                             if game_mode == "cpu":
-                                # CPU戦の場合は、直接ゲーム開始
                                 game_state = "start_game"
                             else:
-                                # オンライン戦の場合は、相手の準備を待つ
                                 game_state = "waiting_for_p2_start"
-                # ★★★ ここまでが修正箇所 ★★★
                                 
                 elif game_state == "result":
                     if event.key == pygame.K_t:
                         (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
-                        player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                         player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
                         network = None
                     elif event.key == pygame.K_r:
                         if game_mode == "cpu":
                             (game_state, my_char_ready, player1, player2, 
-                            game_over, winner_text) = reset_for_new_match()
+                             game_over, winner_text) = reset_for_new_match()
                             wants_retry = False
                         else:
                             wants_retry = True
@@ -493,9 +503,9 @@ def main():
         elif game_state == "char_select":
             opponent_char_index = opponent_data.get("char_index", 0) if game_mode == "online" else 0
             if (game_mode == "cpu" and my_char_ready) or \
-            (game_mode == "online" and my_char_ready and opponent_data.get("ready")):
+               (game_mode == "online" and my_char_ready and opponent_data.get("ready")):
                 game_state = "stage_select"
-            draw_character_select(screen, my_char_index, opponent_char_index, my_char_ready)
+            draw_character_select(screen, my_index, opponent_char_index, my_char_ready)
         
         elif game_state == "stage_select":
             can_select = game_mode == "cpu" or (network and network.player_id == 0)
@@ -512,16 +522,14 @@ def main():
         
         elif game_state == "resetting":
             (game_state, my_char_ready, player1, player2,
-            game_over, winner_text) = reset_for_new_match()
+             game_over, winner_text) = reset_for_new_match()
             wants_retry = False
 
         elif game_state == "start_game":
-            # オンライン戦の場合、両者がこの状態になるまで待機する
             if game_mode == "online" and opponent_data.get("game_state") != "start_game":
                 draw_waiting_screen(screen, "ゲームを開始しています...")
             else:
-                # CPU戦、またはオンライン戦で両者の準備が整ったらゲームを開始
-                stage_idx = my_stage_index if (game_mode == "cpu" or network.player_id == 0) else opponent_data.get("stage_index", 0)
+                stage_idx = my_stage_index if (game_mode == "cpu" or (network and network.player_id == 0)) else opponent_data.get("stage_index", 0)
                 if backgrounds:
                     selected_background = backgrounds[stage_idx]["image"]
 
@@ -591,11 +599,6 @@ def main():
                     draw_result_screen(screen, winner_text)
             else:
                 draw_result_screen(screen, winner_text)
-
-        elif game_state == "resetting":
-            (game_state, my_char_ready, player1, player2,
-            game_over, winner_text) = reset_for_new_match()
-            wants_retry = False
 
         pygame.display.flip()
         clock.tick(FPS)
