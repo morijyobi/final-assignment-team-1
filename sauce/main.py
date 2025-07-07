@@ -1,4 +1,4 @@
-# main.py (アイコン設定・最終完成版)
+# main.py (アイコンパス修正・最終完成版)
 import pygame
 import sys
 import random
@@ -31,16 +31,12 @@ except Exception as e:
     print(f"警告: クリップボード機能は利用できません。エラー: {e}")
 
 pygame.display.set_caption("闘拳伝説")
-# ★★★ ここからがアイコン設定の追加コード ★★★
 try:
-    # アイコンファイルを読み込む（PyInstaller対応済み）
-    # フォルダ構成に合わせて sauce/ をパスに追加
+    # ★★★ ここがアイコンパスの修正箇所！ ★★★
     game_icon = pygame.image.load(resource_path("img/icon2.ico"))
-    # ウィンドウにアイコンを設定する
     pygame.display.set_icon(game_icon)
 except Exception as e:
     print(f"アイコンの設定に失敗しました: {e}")
-# ★★★ ここまで ★★★
 clock = pygame.time.Clock()
 
 
@@ -58,7 +54,6 @@ except:
 
 characters = [{"name": "青龍", "color": BLUE}, {"name": "赤虎", "color": RED}, {"name": "緑風", "color": GREEN}]
 try:
-    # PyInstallerで固めるデータとして指定するフォルダ構成に合わせる
     background_files = [("道場", "img/dojo.png"), ("古代寺", "img/temple.png"), ("森", "img/forest.png")]
     backgrounds = [{"name": name, "image": pygame.transform.scale(pygame.image.load(resource_path(f_name)), (WIDTH, HEIGHT))}
                    for name, f_name in background_files]
@@ -394,7 +389,7 @@ def main():
      my_char_index, my_stage_index, my_char_ready,
      player1, player2, selected_background, 
      game_over, winner_text, wants_retry) = reset_to_title(None)
-    
+
     network = None
     ip_address = ""
     ip_input_message = ""
@@ -505,7 +500,7 @@ def main():
             if (game_mode == "cpu" and my_char_ready) or \
                (game_mode == "online" and my_char_ready and opponent_data.get("ready")):
                 game_state = "stage_select"
-            draw_character_select(screen, my_index, opponent_char_index, my_char_ready)
+            draw_character_select(screen, my_char_index, opponent_char_index, my_char_ready)
         
         elif game_state == "stage_select":
             can_select = game_mode == "cpu" or (network and network.player_id == 0)
