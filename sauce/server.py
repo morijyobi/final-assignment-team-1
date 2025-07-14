@@ -1,4 +1,3 @@
-
 import socket
 import threading
 import pickle
@@ -20,7 +19,6 @@ def get_local_ip():
 def client_thread(conn, player_id, inputs, connections):
     initial_data = {"player_id": player_id}
     conn.send(pickle.dumps(initial_data))
-
     other_id = 1 - player_id
 
     while True:
@@ -30,10 +28,7 @@ def client_thread(conn, player_id, inputs, connections):
                 print(f"[切断] プレイヤー{player_id}")
                 break
 
-            # クライアントから送られたキー入力情報を保存
             inputs[player_id] = pickle.loads(data_raw)
-
-            # 相手の入力情報を送り返す
             conn.sendall(pickle.dumps(inputs[other_id]))
 
         except Exception as e:
