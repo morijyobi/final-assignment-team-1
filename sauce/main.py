@@ -5,7 +5,7 @@ import random
 import socket
 import pickle
 import os
-from config import WIDTH, HEIGHT, FPS
+from config import WIDTH, HEIGHT, FPS, to_relative, to_absolute
 
 def resource_path(relative_path):
     """ PyInstallerで作成した実行ファイルに対応するための、リソースへの絶対パスを返す関数 """
@@ -208,6 +208,7 @@ class Player:
         self.tatsumaki_timer = 0
         self.tatsumaki_duration = 30
         self.tatsumaki_speed = 10
+        self.attack_count = 0  # 攻撃カウント追加
 
     def handle_input(self, input_state, opponent=None):
         if self.is_cpu:
@@ -257,6 +258,7 @@ class Player:
                 self.attack_hit_done = False; self.is_shoryuken = True; self.shoryuken_timer = 15; self.command_buffer.clear()
             else:
                 self.attack_cooldown = 15; self.attack_type = 'weak'; self.is_attacking = True; self.attack_hit_done = False
+                self.attack_count += 1  # 攻撃時にカウントアップ
         
         elif strong_attack and self.attack_cooldown == 0:
             if self.check_hadouken_command():
@@ -266,9 +268,11 @@ class Player:
                 self.attack_hit_done = False; self.is_tatsumaki = True; self.tatsumaki_timer = self.tatsumaki_duration; self.command_buffer.clear()
             else:
                 self.attack_cooldown = 20; self.attack_type = 'strong'; self.is_attacking = True; self.attack_hit_done = False
-        
+                self.attack_count += 1
+
         elif ki_attack and self.attack_cooldown == 0:
             self.fire_kamehameha(); self.attack_cooldown = 60; self.attack_type = 'kamehameha'
+            self.attack_count += 1
 
         if self.command_timer > 0:
             self.command_timer -= 1
@@ -345,7 +349,7 @@ class Player:
         for p in self.kamehameha_list: p.draw(screen)
 
 # --- 判定関数 ---
-def check_attack(attacker, defender):
+def check_attack(attacker, defender, attacker_count=0, defender_count=0):
     if attacker.is_attacking and not attacker.attack_hit_done:
         attack_rect = attacker.rect.copy()
         if attacker.attack_type == 'weak':
@@ -358,8 +362,10 @@ def check_attack(attacker, defender):
             attack_rect.y -= 20; attack_rect.height += 40
         
         if attack_rect.colliderect(defender.rect):
-            attacker.attack_hit_done = True
-            if not defender.is_guarding: defender.hp -= 10
+            # 攻撃カウントで優先判定
+            if attacker_count > defender_count:
+                attacker.attack_hit_done = True
+                if not defender.is_guarding: defender.hp -= 10
 
 def check_projectile_hit(attacker, defender):
     for p in attacker.hadouken_list:
@@ -399,16 +405,29 @@ def main():
         opponent_data = {}
         # 1. 通信
         if game_mode == "online" and network and game_state not in ["title", "ip_input", "waiting_connect"]:
+            keys = pygame.key.get_pressed()
+            # キー入力を辞書化して送信
+            key_dict = {
+                'left': keys[pygame.K_LEFT],
+                'right': keys[pygame.K_RIGHT],
+                'up': keys[pygame.K_UP],
+                'down': keys[pygame.K_DOWN],
+                'a': keys[pygame.K_a],
+                's': keys[pygame.K_s],
+                'd': keys[pygame.K_d],
+                'k': keys[pygame.K_k],
+            }
             my_data = {
                 "game_state": game_state,
-                "char_index": my_char_index, "stage_index": my_stage_index, 
-                "ready": my_char_ready, "keys": {}, "wants_retry": wants_retry,
-                "hp": player1.hp if player1 else 100
+                "char_index": my_char_index,
+                "stage_index": my_stage_index,
+                "ready": my_char_ready,
+                "keys": key_dict,  # ←ここを修正
+                "wants_retry": wants_retry,
+                "hp": player1.hp if player1 else 100,
+                "pos": to_relative(player1.rect.x, player1.rect.y) if player1 else (0, 0),
+                "attack_count": player1.attack_count if player1 else 0,
             }
-            if game_state == "in_game" and not game_over:
-                keys = pygame.key.get_pressed()
-                my_data["keys"] = {'left':keys[pygame.K_LEFT],'right':keys[pygame.K_RIGHT],'up':keys[pygame.K_UP],'down':keys[pygame.K_DOWN],'a':keys[pygame.K_a],'s':keys[pygame.K_s],'d':keys[pygame.K_d],'k':keys[pygame.K_k]}
-            
             opponent_data = network.send(my_data)
             if opponent_data is None:
                 print("相手の接続が切れました。タイトルに戻ります。")
@@ -551,39 +570,42 @@ def main():
         elif game_state == "in_game":
             if selected_background: screen.blit(selected_background, (0,0))
             if not game_over:
-                if game_mode == "online" and opponent_data and opponent_data.get("hp") is not None:
-                    player2.hp = opponent_data.get("hp")
-
+                if game_mode == "online" and opponent_data:
+                    # HP同期
+                    if opponent_data.get("hp") is not None:
+                        player2.hp = opponent_data.get("hp")
+                    # --- 受信した座標を絶対座標に変換し、補間でなめらかに追従 ---
+                    if opponent_data.get("pos") is not None:
+                        abs_x, abs_y = to_absolute(*opponent_data["pos"])
+                        player2.rect.x += int((abs_x - player2.rect.x) * 0.5)
+                        player2.rect.y += int((abs_y - player2.rect.y) * 0.5)
                 keys = pygame.key.get_pressed()
                 player1.handle_input(keys, player2)
                 if game_mode == "cpu":
                     player2.handle_input(None, player1)
                 else:
+                    # ここで相手のキー入力を渡す
                     player2.handle_input(opponent_data.get("keys", {}), player1)
-                
                 player1.update()
                 player2.update()
-                
-                check_attack(player1, player2)
-                check_attack(player2, player1)
+                opponent_attack_count = opponent_data.get("attack_count", 0) if game_mode == "online" and opponent_data else 0
+                check_attack(player1, player2, player1.attack_count, opponent_attack_count)
+                check_attack(player2, player1, opponent_attack_count, player1.attack_count)
                 check_projectile_hit(player1, player2)
                 check_projectile_hit(player2, player1)
-
                 if player1.hp <= 0:
                     winner_text = "YOU LOSE"
                     game_over = True
                 elif player2.hp <= 0:
                     winner_text = "YOU WIN"
                     game_over = True
-                
                 if game_over:
                     game_state = "result"
-
             player1.draw(screen)
             player2.draw(screen)
             draw_hp_bar(screen, 50, 20, player1.hp)
             draw_hp_bar(screen, 550, 20, player2.hp)
-        
+
         elif game_state == "result":
             if game_mode == "online":
                 if wants_retry and opponent_data.get("wants_retry"):
