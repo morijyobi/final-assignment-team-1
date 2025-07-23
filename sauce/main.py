@@ -401,13 +401,14 @@ def main():
         if game_mode == "online" and network and game_state not in ["title", "ip_input", "waiting_connect"]:
             my_data = {
                 "game_state": game_state,
-                "char_index": my_char_index, "stage_index": my_stage_index, 
-                "ready": my_char_ready, "keys": {}, "wants_retry": wants_retry,
-                "hp": player1.hp if player1 else 100
+                "char_index": my_char_index,
+                "stage_index": my_stage_index,
+                "ready": my_char_ready,
+                "keys": {},
+                "wants_retry": wants_retry,
+                "hp": player1.hp if player1 else 100,
+                "pos": (player1.rect.x, player1.rect.y) if player1 else (0, 0)  # 追加
             }
-            if game_state == "in_game" and not game_over:
-                keys = pygame.key.get_pressed()
-                my_data["keys"] = {'left':keys[pygame.K_LEFT],'right':keys[pygame.K_RIGHT],'up':keys[pygame.K_UP],'down':keys[pygame.K_DOWN],'a':keys[pygame.K_a],'s':keys[pygame.K_s],'d':keys[pygame.K_d],'k':keys[pygame.K_k]}
             
             opponent_data = network.send(my_data)
             if opponent_data is None:
@@ -551,9 +552,13 @@ def main():
         elif game_state == "in_game":
             if selected_background: screen.blit(selected_background, (0,0))
             if not game_over:
-                if game_mode == "online" and opponent_data and opponent_data.get("hp") is not None:
-                    player2.hp = opponent_data.get("hp")
-
+                if game_mode == "online" and opponent_data:
+                    # HP同期
+                    if opponent_data.get("hp") is not None:
+                        player2.hp = opponent_data.get("hp")
+                    # 座標同期
+                    if opponent_data.get("pos") is not None:
+                        player2.rect.x, player2.rect.y = opponent_data["pos"]
                 keys = pygame.key.get_pressed()
                 player1.handle_input(keys, player2)
                 if game_mode == "cpu":
