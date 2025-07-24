@@ -17,6 +17,7 @@ def resource_path(relative_path):
 
 # --- 初期化と定数 ---
 pygame.init()
+pygame.mixer.init()
 
 # ウィンドウを作成
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -110,11 +111,12 @@ def draw_title_screen(screen, selected_mode):
 
 def draw_ip_input_screen(screen, ip_address, message=""):
     screen.fill(BLACK)
+    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 70)
     draw_text("サーバーのIPアドレスを入力", FONT_M, WHITE, screen, WIDTH // 2, 100)
     input_box = pygame.Rect(WIDTH // 2 - 150, 200, 300, 50)
     pygame.draw.rect(screen, WHITE, input_box, 2)
     draw_text(ip_address, FONT_M, WHITE, screen, WIDTH // 2, 225)
-    draw_text("Enter:接続 / Space:ドット / Ctrl+V:貼付", FONT_S, WHITE, screen, WIDTH // 2, 300)
+    draw_text("Enter:接続 / Space:ドット / Ctrl+V:貼付 / Delete:一括削除", FONT_S, WHITE, screen, WIDTH // 2, 300)
     if message:
         draw_text(message, FONT_S, RED, screen, WIDTH // 2, 350)
 
@@ -126,6 +128,7 @@ def draw_character_select(screen, my_index, opponent_index, my_ready):
     screen.fill(BLACK)
     title = "キャラを選んでください" if not my_ready else "相手の選択を待っています..."
     draw_text(title, FONT_M, WHITE, screen, WIDTH // 2, 50)
+    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
     for i, char in enumerate(characters):
         if i == my_index:
             pygame.draw.rect(screen, WHITE, (150 + i * 200 - 4, 146, 108, 108), 4)
@@ -139,6 +142,7 @@ def draw_character_select(screen, my_index, opponent_index, my_ready):
 def draw_stage_select(screen, selected_index, can_select):
     screen.fill(BLACK)
     title = "ステージを選んでください" if can_select else "P1がステージを選択中..."
+    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
     draw_text(title, FONT_M, WHITE, screen, WIDTH // 2, 50)
     for i, bg in enumerate(backgrounds):
         rect = pygame.Rect(150 + i * 200, 150, 100, 100)
@@ -155,6 +159,14 @@ def draw_result_screen(screen, winner_text):
 def draw_hp_bar(s, x, y, hp):
     pygame.draw.rect(s, RED, (x, y, 200, 20))
     pygame.draw.rect(s, GREEN, (x, y, max(0, 2 * hp), 20))
+
+def play_bgm(filename, loop=-1):
+    """BGMを再生するユーティリティ関数"""
+    try:
+        pygame.mixer.music.load(resource_path(filename))
+        pygame.mixer.music.play(loop)
+    except Exception as e:
+        print(f"BGM再生エラー: {e}")
 
 # --- ゲームクラス ---
 class Hadouken:
@@ -175,7 +187,7 @@ class Kamehameha:
         self.rect = pygame.Rect(x, y, self.WIDTH, self.HEIGHT)
         self.direction = direction
         self.active = True
-        self.has_hit = False  # ⭐️ ヒット済みかどうかのフラグ追加
+        self.has_hit = False  
 
     def update(self):
         self.rect.x += self.SPEED if self.direction == 'right' else -self.SPEED
@@ -185,7 +197,6 @@ class Kamehameha:
     def draw(self, screen):
         if self.active:
             pygame.draw.rect(screen, KAMEHAMEHA_COLOR, self.rect)
-
 
 class Player:
     WIDTH, HEIGHT, SPEED, JUMP_POWER, GRAVITY = 40, 80, 5, 15, 1
@@ -223,40 +234,46 @@ class Player:
 
         is_dict = isinstance(input_state, dict)
 
+    
+
         self.is_guarding = False
         self.is_crouch = False
 
         if self.is_tatsumaki:
             return
 
-        move_left = input_state.get('left', False) if is_dict else input_state[pygame.K_LEFT]
-        move_right = input_state.get('right', False) if is_dict else input_state[pygame.K_RIGHT]
-        jump = input_state.get('up', False) if is_dict else input_state[pygame.K_UP]
-        crouch = input_state.get('down', False) if is_dict else input_state[pygame.K_DOWN]
-        guard = input_state.get('d', False) if is_dict else input_state[pygame.K_d]
-        weak_attack = input_state.get('a', False) if is_dict else input_state[pygame.K_a]
-        strong_attack = input_state.get('s', False) if is_dict else input_state[pygame.K_s]
+        move_left = input_state.get('a', False) if is_dict else input_state[pygame.K_a]
+        move_right = input_state.get('d', False) if is_dict else input_state[pygame.K_d]
+        jump = input_state.get('w', False) if is_dict else input_state[pygame.K_w]
+        crouch = input_state.get('s', False) if is_dict else input_state[pygame.K_s]
+        guard = input_state.get('h', False) if is_dict else input_state[pygame.K_h]
+        weak_attack = input_state.get('u', False) if is_dict else input_state[pygame.K_u]
+        strong_attack = input_state.get('j', False) if is_dict else input_state[pygame.K_j]
         ki_attack = input_state.get('k', False) if is_dict else input_state[pygame.K_k]
+
+
+        if guard:
+            self.is_guarding = True
+            self.is_crouch = False  # ガード中はしゃがみも無効化
+            return
 
         if move_left:
             self.rect.x -= self.SPEED
             self.facing_right = False
-            self.add_command('←')
+            self.add_command('a')
         if move_right:
             self.rect.x += self.SPEED
             self.facing_right = True
-            self.add_command('→')
+            self.add_command('d')
 
         if jump and self.on_ground:
             self.vel_y = -self.JUMP_POWER
             self.on_ground = False
-            self.add_command('↑')
+            self.add_command('w')
         if crouch and self.on_ground:
             self.is_crouch = True
-            self.add_command('↓')
+            self.add_command('s')
 
-        if guard:
-            self.is_guarding = True
 
         if weak_attack and self.attack_cooldown == 0:
             if self.check_shoryuken_command():
@@ -290,13 +307,13 @@ class Player:
         self.command_timer = self.command_timeout
 
     def check_hadouken_command(self):
-        return '↓→' in ''.join(self.command_buffer)[-3:]
+        return 'sd' in ''.join(self.command_buffer)[-3:]
 
     def check_shoryuken_command(self):
-        return '→↓→' in ''.join(self.command_buffer)[-5:]
+        return 'dsd' in ''.join(self.command_buffer)[-5:]
 
     def check_tatsumaki_command(self):
-        return '←↓→' in ''.join(self.command_buffer)[-5:]
+        return 'asd' in ''.join(self.command_buffer)[-5:]
 
     def fire_hadouken(self):
         h = self.HEIGHT // 2 if self.is_crouch else self.HEIGHT
@@ -313,18 +330,33 @@ class Player:
         self.kamehameha_list.append(Kamehameha(x, y, direction))
 
     def ai_behavior(self, opponent):
+        # すでにガード中ならタイマーを減らす
+        if self.is_guarding:
+            self.guard_timer -= 1
+            if self.guard_timer <= 0:
+                self.is_guarding = False
+            return  # ガード中は何もしない
+
+        # ガードしていないときは行動
         if opponent.rect.centerx > self.rect.centerx + 50:
-            self.rect.x += self.SPEED // 2; self.facing_right = True
+            self.rect.x += self.SPEED // 2
+            self.facing_right = True
         elif opponent.rect.centerx < self.rect.centerx - 50:
-            self.rect.x -= self.SPEED // 2; self.facing_right = False
+            self.rect.x -= self.SPEED // 2
+            self.facing_right = False
         else:
             action = random.randint(0, 100)
             if action < 10 and self.attack_cooldown == 0:
-                self.attack_cooldown = 15; self.attack_type = 'weak'; self.is_attacking = True; self.attack_hit_done = False
+                self.attack_cooldown = 15
+                self.attack_type = 'weak'
+                self.is_attacking = True
+                self.attack_hit_done = False
             elif action < 20:
                 self.is_guarding = True
+                self.guard_timer = random.randint(20, 40)
             elif action < 25 and self.attack_cooldown == 0:
-                self.fire_hadouken(); self.attack_cooldown = 30
+                self.fire_hadouken()
+                self.attack_cooldown = 30
 
     def update(self):
         self.vel_y += self.GRAVITY
@@ -386,23 +418,11 @@ def check_projectile_hit(attacker, defender):
             p.active = False
             if not defender.is_guarding:
                 defender.hp -= p.DAMAGE
-                
-def check_projectile_hit(attacker, defender):
-    for p in attacker.hadouken_list:
-        if p.rect.colliderect(defender.rect):
-            p.active = False
-            if not defender.is_guarding:
-                defender.hp -= 8
 
-    for p in attacker.kamehameha_list:
-        if p.rect.colliderect(defender.rect) and not p.has_hit:
-            p.has_hit = True        # ⭐️ 一度だけヒット
-            p.active = False
-            if not defender.is_guarding:
-                defender.hp -= p.DAMAGE
 
 # --- メイン関数 ---
 def main():
+    title_bgm_played = False
     # --- 状態をリセットするヘルパー関数 ---
     def reset_for_new_match():
         """対戦リセット用の状態初期化"""
@@ -432,13 +452,13 @@ def main():
             keys = pygame.key.get_pressed()
             # キー入力を辞書化して送信
             key_dict = {
-                'left': keys[pygame.K_LEFT],
-                'right': keys[pygame.K_RIGHT],
-                'up': keys[pygame.K_UP],
-                'down': keys[pygame.K_DOWN],
                 'a': keys[pygame.K_a],
-                's': keys[pygame.K_s],
                 'd': keys[pygame.K_d],
+                'w': keys[pygame.K_w],
+                's': keys[pygame.K_s],
+                'u': keys[pygame.K_u],
+                'j': keys[pygame.K_j],
+                'h': keys[pygame.K_h],
                 'k': keys[pygame.K_k],
             }
             my_data = {
@@ -471,19 +491,27 @@ def main():
                         game_state = "char_select" if game_mode == "cpu" else "ip_input"
                 
                 elif game_state == "ip_input":
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.mixer.music.stop()
+                        (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
+                        player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                        network = None
+                        title_bgm_played = False
                     if event.key == pygame.K_RETURN:
                         game_state = "waiting_connect"
                     elif event.key == pygame.K_BACKSPACE:
                         ip_address = ip_address[:-1]
+                    elif event.key == pygame.K_DELETE:  # ← 追加：Deleteキーで一括削除
+                        ip_address = ""
                     elif event.key == pygame.K_v and (pygame.key.get_mods() & pygame.KMOD_CTRL):
                         if scrap_initialized:
                             try:
-                               clipboard_text = pygame.scrap.get(pygame.SCRAP_TEXT)
-                               if clipboard_text:
-                                   cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
-                                   ip_address += cleaned_text.strip()
+                                clipboard_text = pygame.scrap.get(pygame.SCRAP_TEXT)
+                                if clipboard_text:
+                                    cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
+                                    ip_address += cleaned_text.strip()
                             except Exception as e:
-                               print(f"貼り付けに失敗しました: {e}")
+                                print(f"貼り付けに失敗しました: {e}")
                         else:
                             print("クリップボード機能が利用できないため、貼り付けできません。")
                     elif event.key == pygame.K_SPACE:
@@ -493,11 +521,23 @@ def main():
                             ip_address += event.unicode
 
                 elif game_state == "char_select" and not my_char_ready:
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.mixer.music.stop()
+                        (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
+                        player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                        network = None
+                        title_bgm_played = False
                     if event.key == pygame.K_LEFT: my_char_index = (my_char_index - 1) % len(characters)
                     elif event.key == pygame.K_RIGHT: my_char_index = (my_char_index + 1) % len(characters)
                     elif event.key == pygame.K_RETURN: my_char_ready = True
 
                 elif game_state == "stage_select":
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.mixer.music.stop()
+                        (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
+                        player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                        network = None
+                        title_bgm_played = False
                     if game_mode == "cpu" or (network and network.player_id == 0):
                         if event.key == pygame.K_LEFT: my_stage_index = (my_stage_index - 1) % len(backgrounds)
                         elif event.key == pygame.K_RIGHT: my_stage_index = (my_stage_index + 1) % len(backgrounds)
@@ -525,6 +565,9 @@ def main():
             
         if game_state == "title":
             draw_title_screen(screen, selected_mode)
+            if not title_bgm_played:
+                play_bgm("sound/main.mp3")
+                title_bgm_played = True
         elif game_state == "ip_input":
             draw_ip_input_screen(screen, ip_address, ip_input_message)
         elif game_state == "waiting_connect":
@@ -568,6 +611,9 @@ def main():
                 draw_waiting_screen(screen, "ゲームを開始しています...")
             else:
                 stage_idx = my_stage_index if (game_mode == "cpu" or (network and network.player_id == 0)) else opponent_data.get("stage_index", 0)
+                bgm_files = ["sound/dojo.mp3", "sound/temple.mp3", "sound/forest.mp3"]
+                if stage_idx < len(bgm_files):
+                    play_bgm(bgm_files[stage_idx])
                 if backgrounds:
                     selected_background = backgrounds[stage_idx]["image"]
 
@@ -640,7 +686,18 @@ def main():
                     draw_result_screen(screen, winner_text)
             else:
                 draw_result_screen(screen, winner_text)
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_t:
+                pygame.mixer.music.stop()
+                title_bgm_played = False
+                (game_state, game_mode, selected_mode, my_char_index, my_stage_index, my_char_ready,
+                 player1, player2, selected_background, game_over, winner_text, wants_retry) = reset_to_title(network)
+                network = None
 
+        #タイトル画面以外ではtitle_bgm_playedを必ずFalseにする
+        if game_state != "title":
+            title_bgm_played = False
+            
+            
         pygame.display.flip()
         clock.tick(FPS)
 
