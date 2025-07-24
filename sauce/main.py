@@ -114,7 +114,7 @@ def draw_ip_input_screen(screen, ip_address, message=""):
     input_box = pygame.Rect(WIDTH // 2 - 150, 200, 300, 50)
     pygame.draw.rect(screen, WHITE, input_box, 2)
     draw_text(ip_address, FONT_M, WHITE, screen, WIDTH // 2, 225)
-    draw_text("Enter:接続 / Space:ドット / Ctrl+V:貼付", FONT_S, WHITE, screen, WIDTH // 2, 300)
+    draw_text("Enter:接続 / Space:ドット / Ctrl+V:貼付 / Delete:一括削除", FONT_S, WHITE, screen, WIDTH // 2, 300)
     if message:
         draw_text(message, FONT_S, RED, screen, WIDTH // 2, 350)
 
@@ -451,15 +451,17 @@ def main():
                         game_state = "waiting_connect"
                     elif event.key == pygame.K_BACKSPACE:
                         ip_address = ip_address[:-1]
+                    elif event.key == pygame.K_DELETE:  # ← 追加：Deleteキーで一括削除
+                        ip_address = ""
                     elif event.key == pygame.K_v and (pygame.key.get_mods() & pygame.KMOD_CTRL):
                         if scrap_initialized:
                             try:
-                               clipboard_text = pygame.scrap.get(pygame.SCRAP_TEXT)
-                               if clipboard_text:
-                                   cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
-                                   ip_address += cleaned_text.strip()
+                                clipboard_text = pygame.scrap.get(pygame.SCRAP_TEXT)
+                                if clipboard_text:
+                                    cleaned_text = clipboard_text.decode('utf-8', 'ignore').replace('\x00', '')
+                                    ip_address += cleaned_text.strip()
                             except Exception as e:
-                               print(f"貼り付けに失敗しました: {e}")
+                                print(f"貼り付けに失敗しました: {e}")
                         else:
                             print("クリップボード機能が利用できないため、貼り付けできません。")
                     elif event.key == pygame.K_SPACE:
