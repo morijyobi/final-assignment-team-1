@@ -187,11 +187,16 @@ class Kamehameha:
         self.rect = pygame.Rect(x, y, self.WIDTH, self.HEIGHT)
         self.direction = direction
         self.active = True
+        self.has_hit = False  
+
     def update(self):
         self.rect.x += self.SPEED if self.direction == 'right' else -self.SPEED
-        self.active = not(self.rect.right < 0 or self.rect.left > WIDTH)
+        if self.rect.right < 0 or self.rect.left > WIDTH:
+            self.active = False
+
     def draw(self, screen):
-        pygame.draw.rect(screen, KAMEHAMEHA_COLOR, self.rect)
+        if self.active:
+            pygame.draw.rect(screen, KAMEHAMEHA_COLOR, self.rect)
 
 class Player:
     WIDTH, HEIGHT, SPEED, JUMP_POWER, GRAVITY = 40, 80, 5, 15, 1
@@ -404,11 +409,16 @@ def check_projectile_hit(attacker, defender):
     for p in attacker.hadouken_list:
         if p.rect.colliderect(defender.rect):
             p.active = False
-            if not defender.is_guarding: defender.hp -= 8
+            if not defender.is_guarding:
+                defender.hp -= 8
+
     for p in attacker.kamehameha_list:
-        if p.rect.colliderect(defender.rect):
+        if p.rect.colliderect(defender.rect) and not p.has_hit:
+            p.has_hit = True        # ⭐️ 一度だけヒット
             p.active = False
-            if not defender.is_guarding: defender.hp -= p.DAMAGE
+            if not defender.is_guarding:
+                defender.hp -= p.DAMAGE
+
 
 # --- メイン関数 ---
 def main():
