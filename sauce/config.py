@@ -3,7 +3,7 @@
 
 # 画面サイズ
 WIDTH, HEIGHT = 800, 400
-FPS = 60
+FPS = 30
 
 # 地面のY座標（プレイヤーが立つ場所）
 GROUND_Y = HEIGHT - 30
