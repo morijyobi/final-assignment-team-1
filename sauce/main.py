@@ -53,7 +53,11 @@ except:
     FONT_M = pygame.font.SysFont(None, 48)
     FONT_L = pygame.font.SysFont(None, 72)
 
-characters = [{"name": "青龍", "color": BLUE}, {"name": "赤虎", "color": RED}, {"name": "緑風", "color": GREEN}]
+characters = [
+    {"name": "リュウ", "color": BLUE},
+    {"name": "さくら", "color": GREEN},
+    {"name": "エドモンド本田", "color": RED}
+]
 try:
     background_files = [("道場", "img/dojo.png"), ("古代寺", "img/temple.png"), ("森", "img/forest.png")]
     backgrounds = [{"name": name, "image": pygame.transform.scale(pygame.image.load(resource_path(f_name)), (WIDTH, HEIGHT))}
@@ -167,6 +171,14 @@ def play_bgm(filename, loop=-1):
         pygame.mixer.music.play(loop)
     except Exception as e:
         print(f"BGM再生エラー: {e}")
+        
+def load_image(name):
+    try:
+        return pygame.image.load(resource_path(f"img/{name}.png")).convert_alpha()
+    except Exception as e:
+        print(f"[画像読み込み失敗] {name}.png: {e}")
+        return pygame.Surface((40, 80), pygame.SRCALPHA)  # 空の透明な画像を返す
+
 
 # --- ゲームクラス ---
 class Hadouken:
@@ -200,7 +212,7 @@ class Kamehameha:
 
 class Player:
     WIDTH, HEIGHT, SPEED, JUMP_POWER, GRAVITY = 40, 80, 5, 15, 1
-    def __init__(self, x, y, color, is_cpu=False):
+    def __init__(self, x, y, color, character_name="リュウ", is_cpu=False):
         self.rect = pygame.Rect(x, y, self.WIDTH, self.HEIGHT)
         self.color = color
         self.vel_y = 0
@@ -226,6 +238,15 @@ class Player:
         self.tatsumaki_duration = 30
         self.tatsumaki_speed = 10
         self.attack_count = 0  # 攻撃カウント追加
+        self.character_name = character_name
+        self.display_width = 120  # 画像の表示サイズ（幅）
+        self.display_height = 120  # 高さ
+        self.images = {
+            "stand": load_image(f"{character_name}立"),
+            "crouch": load_image(f"{character_name}しゃがみ"),
+            "attack_weak": load_image(f"{character_name}蹴り"),
+            "attack_strong": load_image(f"{character_name}殴り"),
+        }
 
     def handle_input(self, input_state, opponent=None):
         if self.is_cpu:
@@ -238,6 +259,7 @@ class Player:
 
         self.is_guarding = False
         self.is_crouch = False
+        old_x = self.rect.x  # 移動前の位置を保存
 
         if self.is_tatsumaki:
             return
@@ -257,6 +279,14 @@ class Player:
             self.is_crouch = False  # ガード中はしゃがみも無効化
             return
 
+        if crouch and self.on_ground:
+            self.is_crouch = True
+            self.is_guarding = True  # ←★追加：しゃがみ状態でガードONにする
+            self.add_command('s')
+            
+        if self.is_guarding:
+            return
+
         if move_left:
             self.rect.x -= self.SPEED
             self.facing_right = False
@@ -265,7 +295,21 @@ class Player:
             self.rect.x += self.SPEED
             self.facing_right = True
             self.add_command('d')
+        
+        if opponent and self.rect.colliderect(opponent.rect):
+            self.rect.x = old_x  # 重なったら移動前に戻す
 
+        # --- 画面外チェック
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+            # --- 画面外チェック
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+            
         if jump and self.on_ground:
             self.vel_y = -self.JUMP_POWER
             self.on_ground = False
@@ -382,9 +426,43 @@ class Player:
         self.kamehameha_list = [p for p in self.kamehameha_list if p.active]
 
     def draw(self, screen):
-        pygame.draw.rect(screen, GRAY if self.is_guarding else self.color, self.rect)
-        for p in self.hadouken_list: p.draw(screen)
-        for p in self.kamehameha_list: p.draw(screen)
+        # 状態に応じて画像キーを取得
+        if self.is_attacking:
+            key = "attack_weak" if self.attack_type == "weak" else "attack_strong"
+        elif not self.on_ground:
+            key = "jump"
+        elif self.is_crouch:
+            key = "crouch"
+        else:
+            key = "stand"
+
+        image = self.images.get(key) or self.images["stand"]
+
+        # 表示サイズ（しゃがみ時だけ縮小）
+        if self.is_crouch:
+            scale_ratio = 0.8  # ← 好みで調整（例: 半分）
+        else:
+            scale_ratio = 1.0
+
+        scale_w = int(self.display_width * scale_ratio)
+        scale_h = int(self.display_height * scale_ratio)
+
+        # 拡大縮小と左右反転
+        image = pygame.transform.scale(image, (scale_w, scale_h))
+        if not self.facing_right:
+            image = pygame.transform.flip(image, True, False)
+
+        # 底辺を self.rect.bottom に合わせてY座標調整
+        draw_y = self.rect.bottom - scale_h
+        screen.blit(image, (self.rect.x, draw_y))
+
+        # 飛び道具
+        for p in self.hadouken_list:
+            p.draw(screen)
+        for p in self.kamehameha_list:
+            p.draw(screen)
+
+
 
 # --- 判定関数 ---
 def check_attack(attacker, defender, attacker_count=0, defender_count=0):
@@ -622,8 +700,8 @@ def main():
                 opponent_char = characters[opponent_char_idx]
 
                 if game_mode == "cpu":
-                    player1 = Player(100, HEIGHT - 110, my_char["color"])
-                    player2 = Player(600, HEIGHT - 110, opponent_char["color"], is_cpu=True)
+                    player1 = Player(100, HEIGHT - 110, my_char["color"], my_char["name"])
+                    player2 = Player(600, HEIGHT - 110, opponent_char["color"], opponent_char["name"], is_cpu=True)
                 else:
                     if network.player_id == 0:
                         player1 = Player(100, HEIGHT - 110, my_char["color"])
