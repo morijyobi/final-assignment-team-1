@@ -109,9 +109,60 @@ def draw_title_screen(screen, selected_mode):
     draw_text("闘拳伝説", FONT_L, WHITE, screen, WIDTH // 2, HEIGHT // 4)
     cpu_color = WHITE if selected_mode == "cpu" else GRAY
     online_color = WHITE if selected_mode == "online" else GRAY
-    draw_text("CPU対戦", FONT_M, cpu_color, screen, WIDTH // 2, HEIGHT // 2)
-    draw_text("オンライン対戦", FONT_M, online_color, screen, WIDTH // 2, HEIGHT // 2 + 60)
-    draw_text("↑↓キーで選択, Enterで決定", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 50)
+    help_color = WHITE if selected_mode == "help" else GRAY
+    
+    draw_text("CPU対戦", FONT_M, cpu_color, screen, WIDTH // 2, HEIGHT // 2 - 30)
+    draw_text("オンライン対戦", FONT_M, online_color, screen, WIDTH // 2, HEIGHT // 2 + 30)
+    draw_text("操作説明", FONT_M, help_color, screen, WIDTH // 2, HEIGHT // 2 + 90)
+    draw_text("↑↓キーで選択, Enterで決定", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
+    draw_text("ゲーム中はF1キーで操作説明を表示", FONT_S, GRAY, screen, WIDTH // 2, HEIGHT - 50)
+
+def draw_help_screen(screen):
+    """操作説明画面を表示"""
+    screen.fill(BLACK)
+    
+    # タイトル
+    draw_text("操作説明", FONT_L, WHITE, screen, WIDTH // 2, 60)
+    
+    # 基本操作
+    draw_text("【基本操作】", FONT_M, GREEN, screen, WIDTH // 2, 120)
+    basic_controls = [
+        "A/Dキー: 左右移動",
+        "Wキー: ジャンプ", 
+        "Sキー: しゃがみ（自動ガード）",
+        "Hキー: ガード"
+    ]
+    
+    y_start = 160
+    for i, text in enumerate(basic_controls):
+        draw_text(text, FONT_S, WHITE, screen, WIDTH // 2, y_start + i * 35)
+    
+    # 攻撃操作
+    draw_text("【攻撃操作】", FONT_M, RED, screen, WIDTH // 2, 320)
+    attack_controls = [
+        "Uキー: 弱攻撃（パンチ・キック）",
+        "Jキー: 強攻撃（強いパンチ・キック）", 
+        "Kキー: 気功波（遠距離攻撃）"
+    ]
+    
+    y_start = 360
+    for i, text in enumerate(attack_controls):
+        draw_text(text, FONT_S, WHITE, screen, WIDTH // 2, y_start + i * 35)
+    
+    # 必殺技
+    draw_text("【必殺技コマンド】", FONT_M, BLUE, screen, WIDTH // 2, 480)
+    special_moves = [
+        "↓→ + Jキー: 波動拳（飛び道具）",
+        "→↓→ + Uキー: 昇龍拳（対空技）",
+        "←↓→ + Jキー: 竜巻旋風脚（突進技）"
+    ]
+    
+    y_start = 520
+    for i, text in enumerate(special_moves):
+        draw_text(text, FONT_S, WHITE, screen, WIDTH // 2, y_start + i * 35)
+    
+    # 戻るボタン
+    draw_text("ESCキー: タイトルに戻る", FONT_S, GRAY, screen, WIDTH // 2, HEIGHT - 50)
 
 def draw_ip_input_screen(screen, ip_address, message=""):
     screen.fill(BLACK)
@@ -132,7 +183,8 @@ def draw_character_select(screen, my_index, opponent_index, my_ready):
     screen.fill(BLACK)
     title = "キャラを選んでください" if not my_ready else "相手の選択を待っています..."
     draw_text(title, FONT_M, WHITE, screen, WIDTH // 2, 50)
-    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
+    
+    # キャラクター描画
     for i, char in enumerate(characters):
         if i == my_index:
             pygame.draw.rect(screen, WHITE, (150 + i * 200 - 4, 146, 108, 108), 4)
@@ -142,18 +194,27 @@ def draw_character_select(screen, my_index, opponent_index, my_ready):
         rect = pygame.Rect(150 + i * 200, 150, 100, 100)
         pygame.draw.rect(screen, char["color"], rect)
         draw_text(char["name"], FONT_S, WHITE, screen, rect.centerx, rect.bottom + 20)
+    
+    # 操作説明をキャラ名より下に配置
+    draw_text("←→キー: キャラ選択 / Enterキー: 決定", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
+    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 50)
 
 def draw_stage_select(screen, selected_index, can_select):
     screen.fill(BLACK)
     title = "ステージを選んでください" if can_select else "P1がステージを選択中..."
-    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
     draw_text(title, FONT_M, WHITE, screen, WIDTH // 2, 50)
+    
+    # ステージ描画
     for i, bg in enumerate(backgrounds):
         rect = pygame.Rect(150 + i * 200, 150, 100, 100)
         if bg.get("image"):
             screen.blit(pygame.transform.scale(bg["image"], (100,100)), rect.topleft)
         pygame.draw.rect(screen, WHITE, rect, 4 if i == selected_index else 1)
         draw_text(bg["name"], FONT_S, WHITE, screen, rect.centerx, rect.bottom + 20)
+    
+    # 操作説明をステージ名より下に配置
+    draw_text("←→キー: ステージ選択 / Enterキー: 決定", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 80)
+    draw_text("ESCキー: タイトルへ戻る", FONT_S, WHITE, screen, WIDTH // 2, HEIGHT - 50)
 
 def draw_result_screen(screen, winner_text):
     screen.fill(BLACK)
@@ -163,6 +224,54 @@ def draw_result_screen(screen, winner_text):
 def draw_hp_bar(s, x, y, hp):
     pygame.draw.rect(s, RED, (x, y, 200, 20))
     pygame.draw.rect(s, GREEN, (x, y, max(0, 2 * hp), 20))
+
+def draw_game_controls(screen):
+    """ゲーム中の操作説明を表示"""
+    # 背景を半透明にする
+    overlay = pygame.Surface((WIDTH, 220))
+    overlay.set_alpha(200)
+    overlay.fill(BLACK)
+    screen.blit(overlay, (0, HEIGHT - 220))
+    
+    # 枠線を描画
+    pygame.draw.rect(screen, WHITE, (10, HEIGHT - 210, WIDTH - 20, 200), 2)
+    
+    # タイトル
+    draw_text("操作説明 (F1で非表示)", FONT_M, WHITE, screen, WIDTH // 2, HEIGHT - 190)
+    
+    # 左側：基本操作・攻撃
+    left_x = WIDTH // 4
+    draw_text("【基本操作】", FONT_S, GREEN, screen, left_x, HEIGHT - 160)
+    basic_controls = [
+        "A/D: 移動  W: ジャンプ",
+        "S: しゃがみ  H: ガード"
+    ]
+    
+    y_start = HEIGHT - 135
+    for i, text in enumerate(basic_controls):
+        draw_text(text, pygame.font.SysFont("meiryo", 22), WHITE, screen, left_x, y_start + i * 25)
+    
+    draw_text("【攻撃】", FONT_S, RED, screen, left_x, HEIGHT - 80)
+    attack_controls = [
+        "U: 弱攻撃  J: 強攻撃  K: 気功波"
+    ]
+    
+    y_start = HEIGHT - 55
+    for i, text in enumerate(attack_controls):
+        draw_text(text, pygame.font.SysFont("meiryo", 22), WHITE, screen, left_x, y_start + i * 25)
+    
+    # 右側：必殺技
+    right_x = WIDTH * 3 // 4
+    draw_text("【必殺技コマンド】", FONT_S, BLUE, screen, right_x, HEIGHT - 160)
+    special_moves = [
+        "↓→+J: 波動拳",
+        "→↓→+U: 昇龍拳", 
+        "←↓→+J: 竜巻旋風脚"
+    ]
+    
+    y_start = HEIGHT - 135
+    for i, text in enumerate(special_moves):
+        draw_text(text, pygame.font.SysFont("meiryo", 22), WHITE, screen, right_x, y_start + i * 25)
 
 def play_bgm(filename, loop=-1):
     """BGMを再生するユーティリティ関数"""
@@ -521,6 +630,7 @@ def main():
     network = None
     ip_address = ""
     ip_input_message = ""
+    show_controls = False  # 操作説明表示フラグ（初期状態は非表示）
     
     running = True
     while running:
@@ -563,10 +673,24 @@ def main():
             if event.type == pygame.QUIT: running = False
             if event.type == pygame.KEYDOWN:
                 if game_state == "title":
-                    if event.key in (pygame.K_UP, pygame.K_DOWN): selected_mode = "online" if selected_mode == "cpu" else "cpu"
+                    if event.key in (pygame.K_UP, pygame.K_DOWN): 
+                        if selected_mode == "cpu":
+                            selected_mode = "online"
+                        elif selected_mode == "online":
+                            selected_mode = "help"
+                        else:  # help
+                            selected_mode = "cpu"
                     elif event.key == pygame.K_RETURN:
-                        game_mode = selected_mode
-                        game_state = "char_select" if game_mode == "cpu" else "ip_input"
+                        if selected_mode == "help":
+                            game_state = "help"
+                        else:
+                            game_mode = selected_mode
+                            game_state = "char_select" if game_mode == "cpu" else "ip_input"
+                
+                elif game_state == "help":
+                    if event.key == pygame.K_ESCAPE:
+                        game_state = "title"
+                        selected_mode = "cpu"
                 
                 elif game_state == "ip_input":
                     if event.key == pygame.K_ESCAPE:
@@ -637,6 +761,10 @@ def main():
                             wants_retry = False
                         else:
                             wants_retry = True
+
+                # ゲーム中の操作説明表示切り替え（F1キー）
+                if game_state == "in_game" and event.key == pygame.K_F1:
+                    show_controls = not show_controls
         
         # 3. 画面描画とロジック
         screen.fill(BLACK)
@@ -646,6 +774,8 @@ def main():
             if not title_bgm_played:
                 play_bgm("sound/main.mp3")
                 title_bgm_played = True
+        elif game_state == "help":
+            draw_help_screen(screen)
         elif game_state == "ip_input":
             draw_ip_input_screen(screen, ip_address, ip_input_message)
         elif game_state == "waiting_connect":
@@ -753,6 +883,10 @@ def main():
             player2.draw(screen)
             draw_hp_bar(screen, 50, 20, player1.hp)
             draw_hp_bar(screen, 550, 20, player2.hp)
+            
+            # 操作説明の表示
+            if show_controls:
+                draw_game_controls(screen)
 
         elif game_state == "result":
             if game_mode == "online":
